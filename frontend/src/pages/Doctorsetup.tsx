@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { doctorAPI, hospitalAPI } from '../api'
 import Navbar from '../components/Navbar'
-import { getCities, getDistricts } from '../data/turkey'
+import { getCities, getDistricts } from '../data/Turkey'
 
 const SPECIALTIES = ['Kardiyoloji','Nöroloji','Dermatoloji','Pediatri','Ortopedi','Göz Hastalıkları','Psikiyatri','Genel Dahiliye','Kulak Burun Boğaz','Üroloji','Jinekoloji','Diğer']
 const DAYS = ['Pazartesi','Salı','Çarşamba','Perşembe','Cuma','Cumartesi','Pazar']
