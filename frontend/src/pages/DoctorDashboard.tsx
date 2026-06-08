@@ -89,6 +89,10 @@ const DoctorDashboard = () => {
                   Hoş Geldiniz, {user?.name}! 👨‍⚕️
                 </h1>
                 <p className="text-sm text-on-surface-variant">Doktor Paneli</p>
+                <Link to="/doctor-edit" className="flex items-center gap-2 border border-primary text-primary px-5 py-2.5 rounded-full text-sm font-semibold hover:bg-primary/5 transition-colors active:scale-95">
+  <span className="material-symbols-outlined text-lg">edit</span>
+  Profilimi Düzenle
+</Link>
               </div>
             </div>
 

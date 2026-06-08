@@ -12,6 +12,9 @@ import ForgotPassword from './pages/ForgotPassword'
 import ResetPassword from './pages/ResetPassword'
 import Analytics from './pages/Analytics'
 import type { JSX } from 'react/jsx-runtime'
+import DoctorSetup from './pages/Doctorsetup'
+import DoctorProfileEdit from './pages/DoctorProfileEdit'
+
 
 // Korumalı route — giriş yapılmamışsa login'e yönlendir
 const PrivateRoute = ({ children }: { children: JSX.Element }) => {
@@ -42,6 +45,9 @@ function App() {
       <Route path="/chat" element={<PrivateRoute><Chat /></PrivateRoute>} />
       <Route path="/chat/:conversationId" element={<PrivateRoute><Chat /></PrivateRoute>} />
       <Route path="/analytics" element={<PrivateRoute><Analytics /></PrivateRoute>} />
+      <Route path="/doctor-setup" element={<PrivateRoute><DoctorSetup /></PrivateRoute>} />
+      <Route path="/doctor-edit" element={<PrivateRoute><DoctorProfileEdit /></PrivateRoute>} />
+
     </Routes>
   )
 }

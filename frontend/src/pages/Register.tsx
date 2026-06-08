@@ -21,7 +21,11 @@ const Register = () => {
     setLoading(true)
     try {
       await register(name, email, password, role)
-      navigate('/dashboard')
+      if (role === 'DOCTOR') {
+  navigate('/doctor-setup')
+} else {
+  navigate('/dashboard')
+}
     } catch (err: any) {
       setError(err.response?.data?.message || 'Kayıt olunamadı')
     } finally { setLoading(false) }
