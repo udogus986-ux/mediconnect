@@ -22,9 +22,9 @@ const Register = () => {
     try {
       await register(name, email, password, role)
       if (role === 'DOCTOR') {
-  navigate('/doctor-setup')
-} else {
-  navigate('/dashboard')
+        navigate('/doctor-setup')
+          } else {
+        navigate('/dashboard')
 }
     } catch (err: any) {
       setError(err.response?.data?.message || 'Kayıt olunamadı')

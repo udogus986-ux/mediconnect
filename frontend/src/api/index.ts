@@ -1,6 +1,7 @@
 import axios from 'axios'
 
-const API_URL = import.meta.env.VITE_API_URL || 'https://mediconnect-production-a6b2.up.railway.app/api'
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001/api'
+const BACKEND_URL = (import.meta.env.VITE_API_URL || 'http://localhost:5001/api').replace('/api', '')
 
 const api = axios.create({ baseURL: API_URL })
 
@@ -10,7 +11,6 @@ api.interceptors.request.use((config) => {
   return config
 })
 
-// --- AUTH ---
 export const authAPI = {
   register: (data: { name: string; email: string; password: string; role: string }) =>
     api.post('/auth/register', data),
@@ -18,9 +18,11 @@ export const authAPI = {
     api.post('/auth/login', data),
   getMe: () => api.get('/auth/me'),
   logout: () => api.post('/auth/logout'),
+  forgotPassword: (email: string) => api.post('/auth/forgot-password', { email }),
+  resetPassword: (token: string, password: string) =>
+    api.post('/auth/reset-password', { token, password }),
 }
 
-// --- DOCTORS ---
 export const doctorAPI = {
   getAll: (params?: { specialty?: string; city?: string; search?: string }) =>
     api.get('/doctors', { params }),
@@ -31,7 +33,6 @@ export const doctorAPI = {
   updateProfile: (data: object) => api.put('/doctors', data),
 }
 
-// --- APPOINTMENTS ---
 export const appointmentAPI = {
   create: (data: { doctorId: string; date: string; time: string; notes?: string }) =>
     api.post('/appointments', data),
@@ -41,7 +42,6 @@ export const appointmentAPI = {
   cancel: (id: string) => api.put(`/appointments/${id}/cancel`),
 }
 
-// --- MESSAGES ---
 export const messageAPI = {
   getConversations: () => api.get('/messages/conversations'),
   getMessages: (conversationId: string) =>
@@ -49,7 +49,7 @@ export const messageAPI = {
   createConversation: (participantId: string) =>
     api.post('/messages/conversations', { participantId }),
 }
-// --- REVIEWS ---
+
 export const reviewAPI = {
   create: (data: {
     appointmentId: string
@@ -60,8 +60,25 @@ export const reviewAPI = {
   getDoctorReviews: (doctorId: string) => api.get(`/reviews/doctor/${doctorId}`),
   getReviewable: () => api.get('/reviews/reviewable'),
 }
-// --- ANALYTICS ---
+
 export const analyticsAPI = {
   getDoctorAnalytics: () => api.get('/analytics/doctor'),
 }
+
+export const locationAPI = {
+  getCities: () => axios.get(`${BACKEND_URL}/api/cities`),
+  getDistricts: (city: string) =>
+    axios.get(`${BACKEND_URL}/api/districts`, { params: { city } }),
+}
+
+export const hospitalAPI = {
+  search: (city: string, district?: string) =>
+    axios.get(`${BACKEND_URL}/api/hospitals`, { params: { city, district } }),
+}
+
+export const nearbyAPI = {
+  get: (lat: number, lng: number) =>
+    axios.get(`${BACKEND_URL}/api/nearby`, { params: { lat, lng } }),
+}
+
 export default api
