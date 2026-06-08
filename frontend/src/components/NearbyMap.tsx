@@ -255,3 +255,4 @@ const NearbyMap = () => {
 }
 
 export default NearbyMap
+
