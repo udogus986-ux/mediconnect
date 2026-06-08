@@ -3,6 +3,7 @@ import cors from 'cors'
 import dotenv from 'dotenv'
 import { createServer } from 'http'
 import { Server } from 'socket.io'
+import nodeFetch from 'node-fetch'
 import connectDB from './config/database'
 import authRoutes from './routes/auth.routes'
 import doctorRoutes from './routes/doctor.routes'
@@ -24,7 +25,6 @@ const io = new Server(httpServer, {
 
 const PORT = process.env.PORT || 5001
 
-// CORS — tüm vercel ve localhost'a izin ver
 app.use(cors({
   origin: (origin, callback) => {
     if (!origin) return callback(null, true)
@@ -41,12 +41,10 @@ app.use(express.json())
 connectDB()
 startScheduler()
 
-// Health check
 app.get('/health', (req, res) => {
   res.json({ status: 'OK', message: 'MediConnect çalışıyor!' })
 })
 
-// Overpass API proxy — frontend CORS sorununu çözer
 app.get('/api/nearby', async (req, res) => {
   try {
     const { lat, lng } = req.query
@@ -55,7 +53,7 @@ app.get('/api/nearby', async (req, res) => {
     const radius = 5000
     const query = `[out:json][timeout:25];(node["amenity"="hospital"](around:${radius},${lat},${lng});way["amenity"="hospital"](around:${radius},${lat},${lng});node["amenity"="clinic"](around:${radius},${lat},${lng});way["amenity"="clinic"](around:${radius},${lat},${lng});node["healthcare"="hospital"](around:${radius},${lat},${lng});node["healthcare"="clinic"](around:${radius},${lat},${lng}););out center;`
 
-    const response = await fetch(`https://overpass-api.de/api/interpreter?data=${encodeURIComponent(query)}`)
+    const response = await nodeFetch(`https://overpass-api.de/api/interpreter?data=${encodeURIComponent(query)}`)
     const data = await response.json()
     res.json(data)
   } catch (error) {
@@ -64,7 +62,6 @@ app.get('/api/nearby', async (req, res) => {
   }
 })
 
-// Routes
 app.use('/api/auth', authRoutes)
 app.use('/api/doctors', doctorRoutes)
 app.use('/api/appointments', appointmentRoutes)
