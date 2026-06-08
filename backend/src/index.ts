@@ -51,14 +51,25 @@ app.get('/api/nearby', async (req, res) => {
     if (!lat || !lng) return res.status(400).json({ message: 'lat ve lng gerekli' })
 
     const radius = 5000
-    const query = `[out:json][timeout:25];(node["amenity"="hospital"](around:${radius},${lat},${lng});way["amenity"="hospital"](around:${radius},${lat},${lng});node["amenity"="clinic"](around:${radius},${lat},${lng});way["amenity"="clinic"](around:${radius},${lat},${lng});node["healthcare"="hospital"](around:${radius},${lat},${lng});node["healthcare"="clinic"](around:${radius},${lat},${lng}););out center;`
+    const query = `[out:json][timeout:25];(node["amenity"="hospital"](around:${radius},${lat},${lng});way["amenity"="hospital"](around:${radius},${lat},${lng});node["amenity"="clinic"](around:${radius},${lat},${lng});way["amenity"="clinic"](around:${radius},${lat},${lng}););out center;`
 
     const response = await nodeFetch('https://overpass-api.de/api/interpreter', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Accept': 'application/json',
+      },
       body: `data=${encodeURIComponent(query)}`,
     })
+
     const text = await response.text()
+
+    // XML gelirse boş döndür
+    if (text.trim().startsWith('<')) {
+      console.log('Overpass XML döndürdü, boş sonuç gönderiliyor')
+      return res.json({ elements: [] })
+    }
+
     const data = JSON.parse(text)
     res.json(data)
   } catch (error) {
