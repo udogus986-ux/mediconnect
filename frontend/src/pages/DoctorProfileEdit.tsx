@@ -1,11 +1,14 @@
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { doctorAPI, locationAPI, hospitalAPI } from '../api'
+import { doctorAPI, hospitalAPI } from '../api'
 import { useAuth } from '../context/AuthContext'
 import Navbar from '../components/Navbar'
+import { getCities, getDistricts } from '../data/Turkey'
 
-const SPECIALTIES = ['Kardiyoloji', 'Nöroloji', 'Dermatoloji', 'Pediatri', 'Ortopedi', 'Göz Hastalıkları', 'Psikiyatri', 'Genel Dahiliye', 'Kulak Burun Boğaz', 'Üroloji', 'Jinekoloji', 'Diğer']
-const DAYS = ['Pazartesi', 'Salı', 'Çarşamba', 'Perşembe', 'Cuma', 'Cumartesi', 'Pazar']
+const SPECIALTIES = ['Kardiyoloji','Nöroloji','Dermatoloji','Pediatri','Ortopedi','Göz Hastalıkları','Psikiyatri','Genel Dahiliye','Kulak Burun Boğaz','Üroloji','Jinekoloji','Diğer']
+const DAYS = ['Pazartesi','Salı','Çarşamba','Perşembe','Cuma','Cumartesi','Pazar']
+
+interface Hospital { id: number; name: string; type: string; address?: string }
 
 const DoctorProfileEdit = () => {
   const { user } = useAuth()
@@ -28,28 +31,23 @@ const DoctorProfileEdit = () => {
   const [hospital, setHospital] = useState('')
   const [hospitalNotFound, setHospitalNotFound] = useState(false)
   const [hospitalManual, setHospitalManual] = useState('')
-
-  const [cities, setCities] = useState<string[]>([])
-  const [districts, setDistricts] = useState<string[]>([])
-  const [hospitals, setHospitals] = useState<{ id: number; name: string }[]>([])
-  const [loadingCities] = useState(false)
-  const [loadingDistricts, setLoadingDistricts] = useState(false)
+  const [hospitals, setHospitals] = useState<Hospital[]>([])
   const [loadingHospitals, setLoadingHospitals] = useState(false)
-
   const [workingHours, setWorkingHours] = useState(
-    DAYS.map(day => ({ day, start: '09:00', end: '17:00', isAvailable: ['Pazartesi', 'Salı', 'Çarşamba', 'Perşembe', 'Cuma'].includes(day) }))
+    DAYS.map(day => ({ day, start: '09:00', end: '17:00', isAvailable: ['Pazartesi','Salı','Çarşamba','Perşembe','Cuma'].includes(day) }))
   )
 
   useEffect(() => {
     if (!user || user.role !== 'DOCTOR') { navigate('/dashboard'); return }
-
-    const init = async () => {
+    const fetchProfile = async () => {
       try {
-        // Profil yükle
+        // Kendi profilini getir
         const res = await doctorAPI.getAll()
-        const myProfile = res.data.doctors.find((d: any) =>
-          (d.userId?._id || d.userId) === user.id
-        )
+        const myProfile = res.data.doctors.find((d: any) => {
+          const uid = d.userId?._id || d.userId
+          return uid === user.id || uid?.toString() === user.id
+        })
+
         if (myProfile) {
           setSpecialty(myProfile.specialty || '')
           setExperience(String(myProfile.experience || ''))
@@ -62,49 +60,54 @@ const DoctorProfileEdit = () => {
           setDistrict(profileDistrict)
           setAddress(myProfile.location?.address || '')
           if (myProfile.workingHours?.length > 0) setWorkingHours(myProfile.workingHours)
+          // Avatar
+          const userAvatar = myProfile.userId?.avatar
+          if (userAvatar) setAvatar(userAvatar)
 
-          // Şehir/ilçe/hastane verilerini yükle
+          // Hastaneleri yükle
           if (profileCity) {
-            const [distRes, hospRes, cityRes] = await Promise.all([
-              locationAPI.getDistricts(profileCity).catch(() => ({ data: { districts: [] } })),
-              hospitalAPI.search(profileCity, profileDistrict || undefined).catch(() => ({ data: { hospitals: [] } })),
-              locationAPI.getCities().catch(() => ({ data: { cities: [] } })),
-            ])
-            setCities(cityRes.data.cities || [])
-            setDistricts(distRes.data.districts || [])
-            setHospitals(hospRes.data.hospitals || [])
-          } else {
-            const cityRes = await locationAPI.getCities().catch(() => ({ data: { cities: [] } }))
-            setCities(cityRes.data.cities || [])
+            setLoadingHospitals(true)
+            hospitalAPI.search(profileCity, profileDistrict || undefined)
+              .then(r => setHospitals(r.data.hospitals || []))
+              .catch(() => setHospitals([]))
+              .finally(() => setLoadingHospitals(false))
           }
-        } else {
-          const cityRes = await locationAPI.getCities().catch(() => ({ data: { cities: [] } }))
-          setCities(cityRes.data.cities || [])
         }
       } catch (e) { console.error(e) }
       finally { setLoading(false) }
     }
-    init()
+    fetchProfile()
   }, [user])
 
-  const handleCityChange = async (val: string) => {
-    setCity(val); setDistrict(''); setDistricts([]); setHospital(''); setHospitals([])
-    if (!val) return
-    setLoadingDistricts(true)
-    locationAPI.getDistricts(val)
-      .then(res => setDistricts(res.data.districts || []))
-      .catch(() => setDistricts([]))
-      .finally(() => setLoadingDistricts(false))
+  const handleCityChange = (val: string) => {
+    setCity(val); setDistrict(''); setHospital(''); setHospitals([])
   }
 
-  const handleDistrictChange = async (val: string) => {
-    setDistrict(val); setHospital(''); setHospitals([])
+  const handleDistrictChange = (val: string) => {
+    setDistrict(val); setHospital('')
     if (!city) return
     setLoadingHospitals(true)
     hospitalAPI.search(city, val || undefined)
-      .then(res => setHospitals(res.data.hospitals || []))
+      .then(r => setHospitals(r.data.hospitals || []))
       .catch(() => setHospitals([]))
       .finally(() => setLoadingHospitals(false))
+  }
+
+  // Şehir değişince ilçe sıfırlanır, hastaneleri şehirle çek
+  useEffect(() => {
+    if (!city) return
+    if (district) return // district varsa zaten yüklendi
+    setLoadingHospitals(true)
+    hospitalAPI.search(city)
+      .then(r => setHospitals(r.data.hospitals || []))
+      .catch(() => setHospitals([]))
+      .finally(() => setLoadingHospitals(false))
+  }, [city])
+
+  const handleHospitalChange = (val: string) => {
+    setHospital(val)
+    const selected = hospitals.find(h => h.name === val)
+    if (selected?.address) setAddress(selected.address)
   }
 
   const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -135,6 +138,7 @@ const DoctorProfileEdit = () => {
         ...(avatarChanged && avatar ? { avatarBase64: avatar } : {}),
       })
       setSuccess(true)
+      setAvatarChanged(false)
       setTimeout(() => setSuccess(false), 3000)
     } catch (err: any) {
       setError(err.response?.data?.message || 'Profil güncellenemedi')
@@ -150,14 +154,15 @@ const DoctorProfileEdit = () => {
     </div>
   )
 
+  const cities = getCities()
+  const districts = city ? getDistricts(city) : []
+
   return (
     <div className="min-h-screen">
       <Navbar />
       <main className="pt-24 px-4 md:px-8 max-w-3xl mx-auto pb-12">
-
         <div className="flex items-center gap-3 mb-8">
-          <button onClick={() => navigate('/dashboard')}
-            className="flex items-center gap-1 text-sm text-on-surface-variant hover:text-primary transition-colors">
+          <button onClick={() => navigate('/dashboard')} className="flex items-center gap-1 text-sm text-on-surface-variant hover:text-primary transition-colors">
             <span className="material-symbols-outlined text-lg">arrow_back</span>Geri
           </button>
           <h1 className="font-headline text-2xl font-bold text-on-surface">Profilimi Düzenle</h1>
@@ -227,17 +232,17 @@ const DoctorProfileEdit = () => {
               <div>
                 <label className="block text-xs font-semibold text-on-surface-variant mb-2 uppercase tracking-wider">Deneyim (Yıl)</label>
                 <input type="number" min="0" value={experience} onChange={e => setExperience(e.target.value)}
-                  placeholder="10" className="w-full px-4 py-3 bg-surface-container-low border border-outline-variant rounded-xl text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-primary transition-all" />
+                  className="w-full px-4 py-3 bg-surface-container-low border border-outline-variant rounded-xl text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-primary transition-all" />
               </div>
               <div>
                 <label className="block text-xs font-semibold text-on-surface-variant mb-2 uppercase tracking-wider">Konsültasyon Ücreti (₺)</label>
                 <input type="number" min="0" value={consultationFee} onChange={e => setConsultationFee(e.target.value)}
-                  placeholder="500" className="w-full px-4 py-3 bg-surface-container-low border border-outline-variant rounded-xl text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-primary transition-all" />
+                  className="w-full px-4 py-3 bg-surface-container-low border border-outline-variant rounded-xl text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-primary transition-all" />
               </div>
               <div className="md:col-span-2">
                 <label className="block text-xs font-semibold text-on-surface-variant mb-2 uppercase tracking-wider">Biyografi</label>
-                <textarea value={bio} onChange={e => setBio(e.target.value)}
-                  placeholder="Kendinizi hastalara tanıtın..." rows={4}
+                <textarea value={bio} onChange={e => setBio(e.target.value)} rows={4}
+                  placeholder="Kendinizi hastalara tanıtın..."
                   className="w-full px-4 py-3 bg-surface-container-low border border-outline-variant rounded-xl text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-primary transition-all resize-none" />
               </div>
             </div>
@@ -251,9 +256,7 @@ const DoctorProfileEdit = () => {
             </h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-xs font-semibold text-on-surface-variant mb-2 uppercase tracking-wider">
-                  Şehir {loadingCities && <span className="text-primary normal-case font-normal text-xs">Yükleniyor...</span>}
-                </label>
+                <label className="block text-xs font-semibold text-on-surface-variant mb-2 uppercase tracking-wider">Şehir</label>
                 <select value={city} onChange={e => handleCityChange(e.target.value)}
                   className="w-full px-4 py-3 bg-surface-container-low border border-outline-variant rounded-xl text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-primary transition-all">
                   <option value="">Seçin</option>
@@ -261,28 +264,21 @@ const DoctorProfileEdit = () => {
                 </select>
               </div>
               <div>
-                <label className="block text-xs font-semibold text-on-surface-variant mb-2 uppercase tracking-wider">
-                  İlçe {loadingDistricts && <span className="text-primary normal-case font-normal text-xs">Yükleniyor...</span>}
-                </label>
+                <label className="block text-xs font-semibold text-on-surface-variant mb-2 uppercase tracking-wider">İlçe</label>
                 <select value={district} onChange={e => handleDistrictChange(e.target.value)}
-                  disabled={!city || loadingDistricts}
+                  disabled={!city}
                   className="w-full px-4 py-3 bg-surface-container-low border border-outline-variant rounded-xl text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-primary transition-all disabled:opacity-50">
                   <option value="">Seçin</option>
                   {districts.map(d => <option key={d} value={d}>{d}</option>)}
                 </select>
               </div>
               <div className="md:col-span-2">
-                <label className="block text-xs font-semibold text-on-surface-variant mb-2 uppercase tracking-wider">Açık Adres</label>
-                <textarea value={address} onChange={e => setAddress(e.target.value)}
-                  placeholder="Mahalle, cadde, bina no..." rows={2}
-                  className="w-full px-4 py-3 bg-surface-container-low border border-outline-variant rounded-xl text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-primary transition-all resize-none" />
-              </div>
-              <div className="md:col-span-2">
                 <label className="block text-xs font-semibold text-on-surface-variant mb-2 uppercase tracking-wider">
-                  Hastane / Klinik {loadingHospitals && <span className="text-primary normal-case font-normal text-xs">Yükleniyor...</span>}
+                  Hastane / Klinik
+                  {loadingHospitals && <span className="ml-2 text-primary normal-case font-normal text-xs">Yükleniyor...</span>}
                 </label>
                 {!hospitalNotFound ? (
-                  <select value={hospital} onChange={e => setHospital(e.target.value)}
+                  <select value={hospital} onChange={e => handleHospitalChange(e.target.value)}
                     disabled={!city}
                     className="w-full px-4 py-3 bg-surface-container-low border border-outline-variant rounded-xl text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-primary transition-all disabled:opacity-50">
                     <option value="">Seçin</option>
@@ -302,6 +298,12 @@ const DoctorProfileEdit = () => {
                     className="w-4 h-4 accent-primary" />
                   <span className="text-xs text-on-surface-variant">Listede kliniğim veya hastanem yok, manuel gireceğim</span>
                 </label>
+              </div>
+              <div className="md:col-span-2">
+                <label className="block text-xs font-semibold text-on-surface-variant mb-2 uppercase tracking-wider">Açık Adres</label>
+                <textarea value={address} onChange={e => setAddress(e.target.value)}
+                  placeholder="Mahalle, cadde, bina no..." rows={2}
+                  className="w-full px-4 py-3 bg-surface-container-low border border-outline-variant rounded-xl text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-primary transition-all resize-none" />
               </div>
             </div>
           </div>

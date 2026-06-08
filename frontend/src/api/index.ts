@@ -31,6 +31,7 @@ export const doctorAPI = {
     api.get('/doctors/nearby', { params: { lat, lng, radius } }),
   createProfile: (data: object) => api.post('/doctors', data),
   updateProfile: (data: object) => api.put('/doctors', data),
+  getMyProfile: () => api.get('/doctors/my'),
 }
 
 export const appointmentAPI = {
@@ -63,12 +64,6 @@ export const reviewAPI = {
 
 export const analyticsAPI = {
   getDoctorAnalytics: () => api.get('/analytics/doctor'),
-}
-
-export const locationAPI = {
-  getCities: () => axios.get(`${BACKEND_URL}/api/cities`),
-  getDistricts: (city: string) =>
-    axios.get(`${BACKEND_URL}/api/districts`, { params: { city } }),
 }
 
 export const hospitalAPI = {

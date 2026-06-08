@@ -2,16 +2,13 @@ import { Request, Response } from 'express'
 import Doctor from '../models/doctor'
 import User from '../models/user'
 
-// TÜM DOKTORLARI GETİR
 export const getDoctors = async (req: Request, res: Response) => {
   try {
     const { specialty, city, search } = req.query
-
     const filter: any = {}
     if (specialty) filter.specialty = specialty
     if (city) filter['location.city'] = city
 
-    // Eğer giriş yapmış kullanıcı doktorsa kendini listeden çıkar
     const authHeader = req.headers.authorization
     if (authHeader && authHeader.startsWith('Bearer ')) {
       try {
@@ -20,9 +17,7 @@ export const getDoctors = async (req: Request, res: Response) => {
         const decoded = jwt.default.verify(token, process.env.JWT_SECRET as string) as any
         if (decoded.role === 'DOCTOR') {
           const requesterDoctor = await Doctor.findOne({ userId: decoded.userId })
-          if (requesterDoctor) {
-            filter._id = { $ne: requesterDoctor._id }
-          }
+          if (requesterDoctor) filter._id = { $ne: requesterDoctor._id }
         }
       } catch {}
     }
@@ -44,17 +39,14 @@ export const getDoctors = async (req: Request, res: Response) => {
 
     return res.status(200).json({ doctors: filtered })
   } catch (error) {
-    console.error('getDoctors hatası:', error)
     return res.status(500).json({ message: 'Sunucu hatası' })
   }
 }
 
-// TEK DOKTOR GETİR
 export const getDoctor = async (req: Request, res: Response) => {
   try {
     const { id } = req.params
-    const doctor = await Doctor.findById(id)
-      .populate('userId', 'name email avatar isOnline lastSeen')
+    const doctor = await Doctor.findById(id).populate('userId', 'name email avatar isOnline lastSeen')
     if (!doctor) return res.status(404).json({ message: 'Doktor bulunamadı' })
     return res.status(200).json({ doctor })
   } catch (error) {
@@ -62,18 +54,21 @@ export const getDoctor = async (req: Request, res: Response) => {
   }
 }
 
-// DOKTOR PROFİLİ OLUŞTUR
 export const createDoctorProfile = async (req: Request, res: Response) => {
   try {
     const userId = (req as any).user.userId
-    const { specialty, experience, bio, hospital, location, workingHours, consultationFee } = req.body
+    const { specialty, experience, bio, hospital, location, workingHours, consultationFee, avatarBase64 } = req.body
 
     const existing = await Doctor.findOne({ userId })
     if (existing) return res.status(400).json({ message: 'Doktor profili zaten mevcut' })
 
+    // Avatar varsa User'a kaydet
+    if (avatarBase64) {
+      await User.findByIdAndUpdate(userId, { avatar: avatarBase64 })
+    }
+
     const doctor = await Doctor.create({
-      userId, specialty, experience, bio,
-      hospital, location, workingHours, consultationFee,
+      userId, specialty, experience, bio, hospital, location, workingHours, consultationFee,
     })
 
     return res.status(201).json({ message: 'Profil oluşturuldu', doctor })
@@ -83,13 +78,19 @@ export const createDoctorProfile = async (req: Request, res: Response) => {
   }
 }
 
-// DOKTOR PROFİLİ GÜNCELLE
 export const updateDoctorProfile = async (req: Request, res: Response) => {
   try {
     const userId = (req as any).user.userId
+    const { avatarBase64, ...profileData } = req.body
+
+    // Avatar varsa User'a kaydet
+    if (avatarBase64) {
+      await User.findByIdAndUpdate(userId, { avatar: avatarBase64 })
+    }
+
     const doctor = await Doctor.findOneAndUpdate(
       { userId },
-      { ...req.body },
+      { ...profileData },
       { new: true }
     ).populate('userId', 'name email avatar isOnline')
 
@@ -100,11 +101,9 @@ export const updateDoctorProfile = async (req: Request, res: Response) => {
   }
 }
 
-// YAKINDAKI DOKTORLAR
 export const getNearbyDoctors = async (req: Request, res: Response) => {
   try {
     const { lat, lng, radius = 10 } = req.query
-
     if (!lat || !lng) return res.status(400).json({ message: 'Koordinat gerekli' })
 
     const doctors = await Doctor.find({

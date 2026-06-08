@@ -1,10 +1,13 @@
 import { useState, useRef, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { doctorAPI, locationAPI, hospitalAPI } from '../api'
+import { doctorAPI, hospitalAPI } from '../api'
 import Navbar from '../components/Navbar'
+import { getCities, getDistricts } from '../data/turkey'
 
-const SPECIALTIES = ['Kardiyoloji', 'Nöroloji', 'Dermatoloji', 'Pediatri', 'Ortopedi', 'Göz Hastalıkları', 'Psikiyatri', 'Genel Dahiliye', 'Kulak Burun Boğaz', 'Üroloji', 'Jinekoloji', 'Diğer']
-const DAYS = ['Pazartesi', 'Salı', 'Çarşamba', 'Perşembe', 'Cuma', 'Cumartesi', 'Pazar']
+const SPECIALTIES = ['Kardiyoloji','Nöroloji','Dermatoloji','Pediatri','Ortopedi','Göz Hastalıkları','Psikiyatri','Genel Dahiliye','Kulak Burun Boğaz','Üroloji','Jinekoloji','Diğer']
+const DAYS = ['Pazartesi','Salı','Çarşamba','Perşembe','Cuma','Cumartesi','Pazar']
+
+interface Hospital { id: number; name: string; type: string; address?: string }
 
 const DoctorSetup = () => {
   const navigate = useNavigate()
@@ -24,49 +27,33 @@ const DoctorSetup = () => {
   const [hospital, setHospital] = useState('')
   const [hospitalNotFound, setHospitalNotFound] = useState(false)
   const [hospitalManual, setHospitalManual] = useState('')
-
-  const [cities, setCities] = useState<string[]>([])
-  const [districts, setDistricts] = useState<string[]>([])
-  const [hospitals, setHospitals] = useState<{ id: number; name: string }[]>([])
-  const [loadingCities, setLoadingCities] = useState(false)
-  const [loadingDistricts, setLoadingDistricts] = useState(false)
+  const [hospitals, setHospitals] = useState<Hospital[]>([])
   const [loadingHospitals, setLoadingHospitals] = useState(false)
-
   const [workingHours, setWorkingHours] = useState(
-    DAYS.map(day => ({ day, start: '09:00', end: '17:00', isAvailable: ['Pazartesi', 'Salı', 'Çarşamba', 'Perşembe', 'Cuma'].includes(day) }))
+    DAYS.map(day => ({ day, start: '09:00', end: '17:00', isAvailable: ['Pazartesi','Salı','Çarşamba','Perşembe','Cuma'].includes(day) }))
   )
 
   const totalSteps = 4
+  const cities = getCities()
+  const districts = city ? getDistricts(city) : []
 
-  // İlleri yükle (3. adıma gelinince)
-  useEffect(() => {
-    if (step === 3 && cities.length === 0) {
-      setLoadingCities(true)
-      locationAPI.getCities()
-        .then(res => setCities(res.data.cities || []))
-        .catch(() => setCities([]))
-        .finally(() => setLoadingCities(false))
-    }
-  }, [step])
-
-  const handleCityChange = async (val: string) => {
-    setCity(val); setDistrict(''); setDistricts([]); setHospital(''); setHospitals([])
-    if (!val) return
-    setLoadingDistricts(true)
-    locationAPI.getDistricts(val)
-      .then(res => setDistricts(res.data.districts || []))
-      .catch(() => setDistricts([]))
-      .finally(() => setLoadingDistricts(false))
+  const handleCityChange = (val: string) => {
+    setCity(val); setDistrict(''); setHospital(''); setHospitals([])
   }
 
-  const handleDistrictChange = async (val: string) => {
-    setDistrict(val); setHospital(''); setHospitals([])
+  useEffect(() => {
     if (!city) return
     setLoadingHospitals(true)
-    hospitalAPI.search(city, val || undefined)
-      .then(res => setHospitals(res.data.hospitals || []))
+    hospitalAPI.search(city, district || undefined)
+      .then(r => setHospitals(r.data.hospitals || []))
       .catch(() => setHospitals([]))
       .finally(() => setLoadingHospitals(false))
+  }, [city, district])
+
+  const handleHospitalChange = (val: string) => {
+    setHospital(val)
+    const selected = hospitals.find(h => h.name === val)
+    if (selected?.address) setAddress(selected.address)
   }
 
   const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -99,6 +86,7 @@ const DoctorSetup = () => {
         consultationFee: Number(consultationFee),
         location: { city, district, address, coordinates: { lat: 0, lng: 0 } },
         workingHours,
+        ...(avatar ? { avatarBase64: avatar } : {}),
       })
       navigate('/dashboard')
     } catch (err: any) {
@@ -134,13 +122,13 @@ const DoctorSetup = () => {
             </div>
           )}
 
+          {/* ADIM 1 */}
           {step === 1 && (
             <div className="space-y-5">
               <h2 className="font-headline text-xl font-bold text-on-surface mb-2 flex items-center gap-2">
                 <span className="material-symbols-outlined text-primary" style={{fontVariationSettings:"'FILL' 1"}}>stethoscope</span>
                 Temel Bilgiler
               </h2>
-
               <div className="flex items-center gap-4 p-4 bg-surface-container-low rounded-xl border border-outline-variant cursor-pointer" onClick={() => fileInputRef.current?.click()}>
                 {avatar ? (
                   <img src={avatar} alt="" className="w-16 h-16 rounded-xl object-cover" />
@@ -156,7 +144,6 @@ const DoctorSetup = () => {
                 </div>
                 <input ref={fileInputRef} type="file" accept="image/*" onChange={handleAvatarChange} className="hidden" />
               </div>
-
               <div>
                 <label className="block text-xs font-semibold text-on-surface-variant mb-2 uppercase tracking-wider">Uzmanlık *</label>
                 <select value={specialty} onChange={e => setSpecialty(e.target.value)}
@@ -180,6 +167,7 @@ const DoctorSetup = () => {
             </div>
           )}
 
+          {/* ADIM 2 */}
           {step === 2 && (
             <div className="space-y-5">
               <h2 className="font-headline text-xl font-bold text-on-surface mb-2 flex items-center gap-2">
@@ -196,51 +184,45 @@ const DoctorSetup = () => {
             </div>
           )}
 
+          {/* ADIM 3 */}
           {step === 3 && (
             <div className="space-y-4">
               <h2 className="font-headline text-xl font-bold text-on-surface mb-2 flex items-center gap-2">
                 <span className="material-symbols-outlined text-primary" style={{fontVariationSettings:"'FILL' 1"}}>location_on</span>
                 Konum & Hastane
               </h2>
-
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-semibold text-on-surface-variant mb-2 uppercase tracking-wider">
-                    Şehir * {loadingCities && <span className="text-primary normal-case font-normal">Yükleniyor...</span>}
-                  </label>
+                  <label className="block text-xs font-semibold text-on-surface-variant mb-2 uppercase tracking-wider">Şehir *</label>
                   <select value={city} onChange={e => handleCityChange(e.target.value)}
-                    disabled={loadingCities}
-                    className="w-full px-4 py-3 bg-surface-container-low border border-outline-variant rounded-xl text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-primary transition-all disabled:opacity-50">
+                    className="w-full px-4 py-3 bg-surface-container-low border border-outline-variant rounded-xl text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-primary transition-all">
                     <option value="">Seçin</option>
                     {cities.map(c => <option key={c} value={c}>{c}</option>)}
                   </select>
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-on-surface-variant mb-2 uppercase tracking-wider">
-                    İlçe {loadingDistricts && <span className="text-primary normal-case font-normal">Yükleniyor...</span>}
-                  </label>
-                  <select value={district} onChange={e => handleDistrictChange(e.target.value)}
-                    disabled={!city || loadingDistricts}
+                  <label className="block text-xs font-semibold text-on-surface-variant mb-2 uppercase tracking-wider">İlçe</label>
+                  <select value={district} onChange={e => setDistrict(e.target.value)}
+                    disabled={!city}
                     className="w-full px-4 py-3 bg-surface-container-low border border-outline-variant rounded-xl text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-primary transition-all disabled:opacity-50">
                     <option value="">Seçin</option>
                     {districts.map(d => <option key={d} value={d}>{d}</option>)}
                   </select>
                 </div>
               </div>
-
               <div>
                 <label className="block text-xs font-semibold text-on-surface-variant mb-2 uppercase tracking-wider">Açık Adres *</label>
                 <textarea value={address} onChange={e => setAddress(e.target.value)}
                   placeholder="Mahalle, cadde, bina no..." rows={2}
                   className="w-full px-4 py-3 bg-surface-container-low border border-outline-variant rounded-xl text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-primary transition-all resize-none" />
               </div>
-
               <div>
                 <label className="block text-xs font-semibold text-on-surface-variant mb-2 uppercase tracking-wider">
-                  Hastane / Klinik * {loadingHospitals && <span className="text-primary normal-case font-normal">Yükleniyor...</span>}
+                  Hastane / Klinik *
+                  {loadingHospitals && <span className="ml-2 text-primary normal-case font-normal text-xs">Yükleniyor...</span>}
                 </label>
                 {!hospitalNotFound ? (
-                  <select value={hospital} onChange={e => setHospital(e.target.value)}
+                  <select value={hospital} onChange={e => handleHospitalChange(e.target.value)}
                     disabled={!city}
                     className="w-full px-4 py-3 bg-surface-container-low border border-outline-variant rounded-xl text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-primary transition-all disabled:opacity-50">
                     <option value="">Seçin</option>
@@ -261,6 +243,7 @@ const DoctorSetup = () => {
             </div>
           )}
 
+          {/* ADIM 4 */}
           {step === 4 && (
             <div>
               <h2 className="font-headline text-xl font-bold text-on-surface mb-5 flex items-center gap-2">
