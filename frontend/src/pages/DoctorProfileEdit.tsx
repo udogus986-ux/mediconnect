@@ -32,7 +32,7 @@ const DoctorProfileEdit = () => {
   const [cities, setCities] = useState<string[]>([])
   const [districts, setDistricts] = useState<string[]>([])
   const [hospitals, setHospitals] = useState<{ id: number; name: string }[]>([])
-  const [loadingCities, setLoadingCities] = useState(false)
+  const [loadingCities] = useState(false)
   const [loadingDistricts, setLoadingDistricts] = useState(false)
   const [loadingHospitals, setLoadingHospitals] = useState(false)
 
