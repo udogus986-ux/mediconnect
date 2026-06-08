@@ -27,8 +27,12 @@ const io = new Server(httpServer, {
 const PORT = process.env.PORT || 5001;
 
 app.use(cors({
-  origin: '*',
-  credentials: false,
+  origin: [
+    'https://mediconnect-l9up9lqui-udogus986-uxs-projects.vercel.app',
+    'http://localhost:5173',
+    'http://localhost:5174',
+  ],
+  credentials: true,
 }))
 app.use(express.json());
 

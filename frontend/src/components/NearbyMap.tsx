@@ -82,9 +82,9 @@ const NearbyMap = () => {
             out center;
           `
 
-          const response = await fetch(
-            `https://overpass-api.de/api/interpreter?data=${encodeURIComponent(query)}`
-          )
+         const response = await fetch(
+  `https://overpass.kumi.systems/api/interpreter?data=${encodeURIComponent(query)}`
+)
           const data = await response.json()
 
           const fetchedPlaces: Place[] = data.elements
