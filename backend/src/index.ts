@@ -27,9 +27,9 @@ const io = new Server(httpServer, {
 const PORT = process.env.PORT || 5001;
 
 app.use(cors({
-  origin: process.env.CLIENT_URL || 'http://localhost:5173',
-  credentials: true,
-}));
+  origin: '*',
+  credentials: false,
+}))
 app.use(express.json());
 
 connectDB();

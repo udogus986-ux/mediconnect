@@ -21,7 +21,7 @@ interface Conversation {
   updatedAt: string
 }
 
-const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || 'http://localhost:5001'
+const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || 'https://mediconnect-production-a6b2.up.railway.app'
 
 const Chat = () => {
   const { conversationId } = useParams()
