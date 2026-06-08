@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link} from 'react-router-dom'
 import { appointmentAPI, messageAPI } from '../api'
 import { useAuth } from '../context/AuthContext'
 import Navbar from '../components/Navbar'
@@ -36,7 +36,6 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string }
 
 const PatientDashboard = () => {
   const { user } = useAuth()
-  const navigate = useNavigate()
   const [appointments, setAppointments] = useState<Appointment[]>([])
   const [conversations, setConversations] = useState<Conversation[]>([])
   const [loading, setLoading] = useState(true)

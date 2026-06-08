@@ -90,7 +90,7 @@ const NearbyMap = () => {
           const fetchedPlaces: Place[] = data.elements
             .filter((el: any) => el.lat || el.center)
             .slice(0, 20)
-            .map((el: any, i: number) => {
+            .map((el: any,) => {
               const lat = el.lat || el.center?.lat
               const lng = el.lon || el.center?.lon
               const amenity = el.tags?.amenity || el.tags?.healthcare || 'clinic'
@@ -119,7 +119,7 @@ const NearbyMap = () => {
 
         setLoading(false)
       },
-      (err) => {
+      () => {
         setError('Konum alınamadı. Lütfen konum iznini etkinleştirin.')
         setLoading(false)
       }
