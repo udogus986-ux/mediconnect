@@ -38,6 +38,8 @@ interface Place {
   distance?: string
 }
 
+const BACKEND_URL = import.meta.env.VITE_API_URL?.replace('/api', '') || 'http://localhost:5001'
+
 const NearbyMap = () => {
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null)
   const [places, setPlaces] = useState<Place[]>([])
@@ -68,29 +70,13 @@ const NearbyMap = () => {
         setUserLocation({ lat: latitude, lng: longitude })
 
         try {
-          const radius = 5000
-          const query = `[out:json][timeout:25];(node["amenity"="hospital"](around:${radius},${latitude},${longitude});way["amenity"="hospital"](around:${radius},${latitude},${longitude});node["amenity"="clinic"](around:${radius},${latitude},${longitude});way["amenity"="clinic"](around:${radius},${latitude},${longitude});node["healthcare"="hospital"](around:${radius},${latitude},${longitude});node["healthcare"="clinic"](around:${radius},${latitude},${longitude}););out center;`
+          // Backend proxy üzerinden istek at — CORS sorunu yok
+          const response = await fetch(
+            `${BACKEND_URL}/api/nearby?lat=${latitude}&lng=${longitude}`
+          )
+          const data = await response.json()
 
-          // CORS destekleyen mirror kullan
-          const urls = [
-            `https://overpass.kumi.systems/api/interpreter?data=${encodeURIComponent(query)}`,
-            `https://maps.mail.ru/osm/tools/overpass/api/interpreter?data=${encodeURIComponent(query)}`,
-          ]
-
-          let data = null
-          for (const url of urls) {
-            try {
-              const res = await fetch(url, { mode: 'cors' })
-              if (res.ok) {
-                data = await res.json()
-                break
-              }
-            } catch { continue }
-          }
-
-          if (!data) throw new Error('API yanıt vermedi')
-
-          const fetchedPlaces: Place[] = data.elements
+          const fetchedPlaces: Place[] = (data.elements || [])
             .filter((el: any) => el.lat || el.center)
             .slice(0, 20)
             .map((el: any) => {
@@ -179,7 +165,8 @@ const NearbyMap = () => {
           <Circle center={[userLocation.lat, userLocation.lng]} radius={5000}
             pathOptions={{ color: '#0B6E7A', fillColor: '#0B6E7A', fillOpacity: 0.05, weight: 1 }} />
           {filteredPlaces.map(place => (
-            <Marker key={place.id} position={[place.lat, place.lng]} icon={place.type === 'hospital' ? hospitalIcon : clinicIcon}>
+            <Marker key={place.id} position={[place.lat, place.lng]}
+              icon={place.type === 'hospital' ? hospitalIcon : clinicIcon}>
               <Popup>
                 <div>
                   <div className="font-semibold text-sm">{place.name}</div>
