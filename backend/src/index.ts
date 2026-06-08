@@ -27,11 +27,16 @@ const io = new Server(httpServer, {
 const PORT = process.env.PORT || 5001;
 
 app.use(cors({
-  origin: [
-    'https://mediconnect-l9up9lqui-udogus986-uxs-projects.vercel.app',
-    'http://localhost:5173',
-    'http://localhost:5174',
-  ],
+  origin: (origin, callback) => {
+    if (!origin) return callback(null, true)
+    if (
+      origin.includes('vercel.app') ||
+      origin.includes('localhost')
+    ) {
+      return callback(null, true)
+    }
+    callback(new Error('Not allowed by CORS'))
+  },
   credentials: true,
 }))
 app.use(express.json());
