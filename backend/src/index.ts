@@ -53,8 +53,13 @@ app.get('/api/nearby', async (req, res) => {
     const radius = 5000
     const query = `[out:json][timeout:25];(node["amenity"="hospital"](around:${radius},${lat},${lng});way["amenity"="hospital"](around:${radius},${lat},${lng});node["amenity"="clinic"](around:${radius},${lat},${lng});way["amenity"="clinic"](around:${radius},${lat},${lng});node["healthcare"="hospital"](around:${radius},${lat},${lng});node["healthcare"="clinic"](around:${radius},${lat},${lng}););out center;`
 
-    const response = await nodeFetch(`https://overpass-api.de/api/interpreter?data=${encodeURIComponent(query)}`)
-    const data = await response.json()
+    const response = await nodeFetch('https://overpass-api.de/api/interpreter', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: `data=${encodeURIComponent(query)}`,
+    })
+    const text = await response.text()
+    const data = JSON.parse(text)
     res.json(data)
   } catch (error) {
     console.error('Overpass proxy hatası:', error)
