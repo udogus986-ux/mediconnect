@@ -96,9 +96,13 @@ const DoctorProfile = () => {
             <div className="glass-card rounded-2xl p-6 border-l-4 border-l-primary fade-up fade-up-1">
               <div className="flex gap-5 items-start">
                 <div className="relative flex-shrink-0">
-                  <div className="w-28 h-28 rounded-2xl bg-primary-container flex items-center justify-center text-4xl font-bold text-on-primary-container">
-                    {doctor.userId.name.charAt(0)}
-                  </div>
+                  {doctor.userId.avatar ? (
+  <img src={doctor.userId.avatar} alt="" className="w-28 h-28 rounded-2xl object-cover border-2 border-primary/20" />
+) : (
+  <div className="w-28 h-28 rounded-2xl bg-primary-container flex items-center justify-center text-4xl font-bold text-on-primary-container">
+    {doctor.userId.name.charAt(0)}
+  </div>
+)}
                   {doctor.userId.isOnline && (
                     <div className="absolute -top-1 -right-1 w-5 h-5 bg-green-500 rounded-full border-2 border-white pulse-online" />
                   )}
