@@ -41,27 +41,26 @@ const DoctorProfileEdit = () => {
     if (!user || user.role !== 'DOCTOR') { navigate('/dashboard'); return }
     const fetchProfile = async () => {
       try {
-        // Kendi profilini getir
-        const res = await doctorAPI.getAll()
-        const myProfile = res.data.doctors.find((d: any) => {
-          const uid = d.userId?._id || d.userId
-          return uid === user.id || uid?.toString() === user.id
-        })
+        // /doctors/my endpoint ile kendi profilini getir
+        const res = await doctorAPI.getMyProfile()
+        const myProfile = res.data.doctor
 
         if (myProfile) {
           setSpecialty(myProfile.specialty || '')
           setExperience(String(myProfile.experience || ''))
           setBio(myProfile.bio || '')
-          setHospital(myProfile.hospital || '')
           setConsultationFee(String(myProfile.consultationFee || ''))
           const profileCity = myProfile.location?.city || ''
           const profileDistrict = myProfile.location?.district || ''
+          const profileHospital = myProfile.hospital || ''
           setCity(profileCity)
           setDistrict(profileDistrict)
           setAddress(myProfile.location?.address || '')
+          setHospital(profileHospital)
           if (myProfile.workingHours?.length > 0) setWorkingHours(myProfile.workingHours)
+
           // Avatar
-          const userAvatar = myProfile.userId?.avatar
+          const userAvatar = (myProfile.userId as any)?.avatar
           if (userAvatar) setAvatar(userAvatar)
 
           // Hastaneleri yükle
@@ -73,14 +72,23 @@ const DoctorProfileEdit = () => {
               .finally(() => setLoadingHospitals(false))
           }
         }
-      } catch (e) { console.error(e) }
-      finally { setLoading(false) }
+      } catch (e) {
+        console.error('Profil yüklenemedi:', e)
+      } finally {
+        setLoading(false)
+      }
     }
     fetchProfile()
   }, [user])
 
   const handleCityChange = (val: string) => {
     setCity(val); setDistrict(''); setHospital(''); setHospitals([])
+    if (!val) return
+    setLoadingHospitals(true)
+    hospitalAPI.search(val)
+      .then(r => setHospitals(r.data.hospitals || []))
+      .catch(() => setHospitals([]))
+      .finally(() => setLoadingHospitals(false))
   }
 
   const handleDistrictChange = (val: string) => {
@@ -93,17 +101,6 @@ const DoctorProfileEdit = () => {
       .finally(() => setLoadingHospitals(false))
   }
 
-  // Şehir değişince ilçe sıfırlanır, hastaneleri şehirle çek
-  useEffect(() => {
-    if (!city) return
-    if (district) return // district varsa zaten yüklendi
-    setLoadingHospitals(true)
-    hospitalAPI.search(city)
-      .then(r => setHospitals(r.data.hospitals || []))
-      .catch(() => setHospitals([]))
-      .finally(() => setLoadingHospitals(false))
-  }, [city])
-
   const handleHospitalChange = (val: string) => {
     setHospital(val)
     const selected = hospitals.find(h => h.name === val)
@@ -113,6 +110,11 @@ const DoctorProfileEdit = () => {
   const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
+    // Boyut kontrolü — 5MB
+    if (file.size > 5 * 1024 * 1024) {
+      setError('Fotoğraf 5MB\'dan küçük olmalı')
+      return
+    }
     setAvatarChanged(true)
     const reader = new FileReader()
     reader.onload = (ev) => setAvatar(ev.target?.result as string)
@@ -129,20 +131,28 @@ const DoctorProfileEdit = () => {
     e.preventDefault()
     setSaving(true); setError(''); setSuccess(false)
     try {
-      await doctorAPI.updateProfile({
-        specialty, experience: Number(experience), bio,
+      const payload: any = {
+        specialty,
+        experience: Number(experience),
+        bio,
         hospital: hospitalNotFound ? hospitalManual : hospital,
         consultationFee: Number(consultationFee),
         location: { city, district, address, coordinates: { lat: 0, lng: 0 } },
         workingHours,
-        ...(avatarChanged && avatar ? { avatarBase64: avatar } : {}),
-      })
+      }
+      // Sadece değiştiyse fotoğraf gönder
+      if (avatarChanged && avatar) {
+        payload.avatarBase64 = avatar
+      }
+      await doctorAPI.updateProfile(payload)
       setSuccess(true)
       setAvatarChanged(false)
       setTimeout(() => setSuccess(false), 3000)
     } catch (err: any) {
       setError(err.response?.data?.message || 'Profil güncellenemedi')
-    } finally { setSaving(false) }
+    } finally {
+      setSaving(false)
+    }
   }
 
   if (loading) return (
@@ -162,7 +172,8 @@ const DoctorProfileEdit = () => {
       <Navbar />
       <main className="pt-24 px-4 md:px-8 max-w-3xl mx-auto pb-12">
         <div className="flex items-center gap-3 mb-8">
-          <button onClick={() => navigate('/dashboard')} className="flex items-center gap-1 text-sm text-on-surface-variant hover:text-primary transition-colors">
+          <button onClick={() => navigate('/dashboard')}
+            className="flex items-center gap-1 text-sm text-on-surface-variant hover:text-primary transition-colors">
             <span className="material-symbols-outlined text-lg">arrow_back</span>Geri
           </button>
           <h1 className="font-headline text-2xl font-bold text-on-surface">Profilimi Düzenle</h1>
@@ -174,7 +185,7 @@ const DoctorProfileEdit = () => {
           </div>
         )}
         {success && (
-          <div className="flex items-center gap-2 bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-xl mb-6 text-sm fade-up">
+          <div className="flex items-center gap-2 bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-xl mb-6 text-sm">
             <span className="material-symbols-outlined text-lg" style={{fontVariationSettings:"'FILL' 1"}}>check_circle</span>
             Profil başarıyla güncellendi!
           </div>
@@ -260,7 +271,7 @@ const DoctorProfileEdit = () => {
                 <select value={city} onChange={e => handleCityChange(e.target.value)}
                   className="w-full px-4 py-3 bg-surface-container-low border border-outline-variant rounded-xl text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-primary transition-all">
                   <option value="">Seçin</option>
-                  {cities.map(c => <option key={c} value={c}>{c}</option>)}
+                  {cities.map((c: string) => <option key={c} value={c}>{c}</option>)}
                 </select>
               </div>
               <div>
@@ -269,7 +280,7 @@ const DoctorProfileEdit = () => {
                   disabled={!city}
                   className="w-full px-4 py-3 bg-surface-container-low border border-outline-variant rounded-xl text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-primary transition-all disabled:opacity-50">
                   <option value="">Seçin</option>
-                  {districts.map(d => <option key={d} value={d}>{d}</option>)}
+                  {districts.map((d: string) => <option key={d} value={d}>{d}</option>)}
                 </select>
               </div>
               <div className="md:col-span-2">

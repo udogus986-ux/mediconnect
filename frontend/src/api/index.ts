@@ -27,11 +27,11 @@ export const doctorAPI = {
   getAll: (params?: { specialty?: string; city?: string; search?: string }) =>
     api.get('/doctors', { params }),
   getOne: (id: string) => api.get(`/doctors/${id}`),
+  getMyProfile: () => api.get('/doctors/my'),
   getNearby: (lat: number, lng: number, radius?: number) =>
     api.get('/doctors/nearby', { params: { lat, lng, radius } }),
   createProfile: (data: object) => api.post('/doctors', data),
   updateProfile: (data: object) => api.put('/doctors', data),
-  getMyProfile: () => api.get('/doctors/my'),
 }
 
 export const appointmentAPI = {

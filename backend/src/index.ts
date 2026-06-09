@@ -29,34 +29,23 @@ app.use(cors({
   },
   credentials: true,
 }))
-app.use(express.json())
+
+// Fotoğraf için limit artır
+app.use(express.json({ limit: '10mb' }))
+app.use(express.urlencoded({ limit: '10mb', extended: true }))
+
 connectDB()
 startScheduler()
 
 app.get('/health', (req, res) => res.json({ status: 'OK' }))
 
-// Hastane/klinik arama — şehir+ilçe bazlı
+// Hastane/klinik arama
 app.get('/api/hospitals', async (req, res) => {
   try {
     const { city, district } = req.query
     if (!city) return res.json({ hospitals: [] })
-
-    // İlçe varsa ilçeyle, yoksa şehirle ara
     const areaName = district || city
-
-    const query = `
-[out:json][timeout:30];
-area["name"="${areaName}"]["admin_level"~"4|6|7|8"]->.searchArea;
-(
-  node["amenity"="hospital"](area.searchArea);
-  node["amenity"="clinic"](area.searchArea);
-  node["healthcare"="hospital"](area.searchArea);
-  node["healthcare"="clinic"](area.searchArea);
-  way["amenity"="hospital"](area.searchArea);
-  way["amenity"="clinic"](area.searchArea);
-);
-out center tags;`
-
+    const query = `[out:json][timeout:30];area["name"="${areaName}"]["admin_level"~"4|6|7|8"]->.searchArea;(node["amenity"="hospital"](area.searchArea);node["amenity"="clinic"](area.searchArea);node["healthcare"="hospital"](area.searchArea);node["healthcare"="clinic"](area.searchArea);way["amenity"="hospital"](area.searchArea);way["amenity"="clinic"](area.searchArea););out center tags;`
     const response = await nodeFetch('https://overpass-api.de/api/interpreter', {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -64,25 +53,19 @@ out center tags;`
     })
     const text = await response.text()
     if (text.trim().startsWith('<')) return res.json({ hospitals: [] })
-
     const data = JSON.parse(text) as any
+    const seen = new Set()
     const hospitals = (data.elements || [])
       .filter((el: any) => el.tags?.name)
+      .filter((el: any) => { if (seen.has(el.tags.name)) return false; seen.add(el.tags.name); return true })
       .map((el: any) => ({
         id: el.id,
         name: el.tags.name,
         type: el.tags.amenity || el.tags.healthcare || 'hospital',
-        address: [
-          el.tags['addr:street'],
-          el.tags['addr:housenumber'],
-        ].filter(Boolean).join(' ') || '',
+        address: [el.tags['addr:street'], el.tags['addr:housenumber']].filter(Boolean).join(' ') || '',
         lat: el.lat || el.center?.lat || null,
         lng: el.lon || el.center?.lon || null,
       }))
-      .filter((h: any, i: number, arr: any[]) =>
-        arr.findIndex((x: any) => x.name === h.name) === i
-      ) // Tekrar edenleri kaldır
-
     res.json({ hospitals })
   } catch (error) {
     console.error('Hospitals hatası:', error)
@@ -105,7 +88,7 @@ app.get('/api/nearby', async (req, res) => {
     const text = await response.text()
     if (text.trim().startsWith('<')) return res.json({ elements: [] })
     res.json(JSON.parse(text))
-  } catch (error) {
+  } catch {
     res.status(500).json({ elements: [] })
   }
 })
