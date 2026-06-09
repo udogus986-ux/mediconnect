@@ -140,9 +140,13 @@ const Doctors = () => {
                 
                 {/* Avatar */}
                 <div className="relative flex-shrink-0">
-                  <div className="w-24 h-24 rounded-xl bg-primary-container flex items-center justify-center text-3xl font-bold text-on-primary-container">
-                    {doctor.userId.name.charAt(0)}
-                  </div>
+                  {doctor.userId.avatar ? (
+  <img src={doctor.userId.avatar} alt="" className="w-24 h-24 rounded-xl object-cover" />
+) : (
+  <div className="w-24 h-24 rounded-xl bg-primary-container flex items-center justify-center text-3xl font-bold text-on-primary-container">
+    {doctor.userId.name.charAt(0)}
+  </div>
+)}
                   {doctor.userId.isOnline && (
                     <div className="absolute -top-1 -right-1 w-4 h-4 bg-green-500 rounded-full border-2 border-white pulse-online" />
                   )}

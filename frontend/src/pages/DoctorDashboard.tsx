@@ -101,16 +101,27 @@ const DoctorDashboard = () => {
         <div className="mb-8 fade-up fade-up-1">
           <div className="flex items-center justify-between flex-wrap gap-4">
             <div className="flex items-center gap-4">
-              <div className="w-14 h-14 rounded-full bg-primary-container flex items-center justify-center text-2xl font-bold text-on-primary-container">
-                {user?.name.charAt(0)}
-              </div>
+              {user?.avatar ? (
+                <img src={user.avatar} alt="" className="w-14 h-14 rounded-full object-cover border-2 border-primary/30" />
+              ) : (
+                <div className="w-14 h-14 rounded-full bg-primary-container flex items-center justify-center text-2xl font-bold text-on-primary-container">
+                  {user?.name.charAt(0)}
+                </div>
+              )}
               <div>
                 <h1 className="font-headline text-2xl font-bold text-on-surface">
                   Hoş Geldiniz, {user?.name}! 👨‍⚕️
                 </h1>
-                <span> </span>
+                <p className="text-sm text-on-surface-variant">Doktor Paneli</p>
               </div>
             </div>
+
+            <div className="flex items-center gap-3 flex-wrap">
+              <Link to="/doctor-edit"
+                className="flex items-center gap-2 border border-primary text-primary px-5 py-2.5 rounded-full text-sm font-semibold hover:bg-primary/5 transition-colors active:scale-95">
+                <span className="material-symbols-outlined text-lg">edit</span>
+                Profilimi Düzenle
+              </Link>
 
             {pendingAppointments.length > 0 && (
               <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 px-4 py-2 rounded-full">
@@ -120,6 +131,7 @@ const DoctorDashboard = () => {
                 </span>
               </div>
             )}
+            </div>
           </div>
         </div>
 
