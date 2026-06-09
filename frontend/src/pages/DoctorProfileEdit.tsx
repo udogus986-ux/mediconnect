@@ -11,13 +11,14 @@ const DAYS = ['Pazartesi','Salı','Çarşamba','Perşembe','Cuma','Cumartesi','P
 interface Hospital { id: number; name: string; type: string; address?: string }
 
 const DoctorProfileEdit = () => {
-  const { user } = useAuth()
+  const { user, updateUser } = useAuth()
   const navigate = useNavigate()
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const errorRef = useRef<HTMLDivElement>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
-  const [success, setSuccess] = useState(false)
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
 
   const [avatar, setAvatar] = useState<string | null>(null)
   const [avatarChanged, setAvatarChanged] = useState(false)
@@ -37,14 +38,18 @@ const DoctorProfileEdit = () => {
     DAYS.map(day => ({ day, start: '09:00', end: '17:00', isAvailable: ['Pazartesi','Salı','Çarşamba','Perşembe','Cuma'].includes(day) }))
   )
 
+  // Refs for field error scroll
+  const specialtyRef = useRef<HTMLDivElement>(null)
+  const bioRef = useRef<HTMLDivElement>(null)
+  const cityRef = useRef<HTMLDivElement>(null)
+  const hospitalRef = useRef<HTMLDivElement>(null)
+
   useEffect(() => {
     if (!user || user.role !== 'DOCTOR') { navigate('/dashboard'); return }
     const fetchProfile = async () => {
       try {
-        // /doctors/my endpoint ile kendi profilini getir
         const res = await doctorAPI.getMyProfile()
         const myProfile = res.data.doctor
-
         if (myProfile) {
           setSpecialty(myProfile.specialty || '')
           setExperience(String(myProfile.experience || ''))
@@ -52,18 +57,13 @@ const DoctorProfileEdit = () => {
           setConsultationFee(String(myProfile.consultationFee || ''))
           const profileCity = myProfile.location?.city || ''
           const profileDistrict = myProfile.location?.district || ''
-          const profileHospital = myProfile.hospital || ''
           setCity(profileCity)
           setDistrict(profileDistrict)
           setAddress(myProfile.location?.address || '')
-          setHospital(profileHospital)
+          setHospital(myProfile.hospital || '')
           if (myProfile.workingHours?.length > 0) setWorkingHours(myProfile.workingHours)
-
-          // Avatar
           const userAvatar = (myProfile.userId as any)?.avatar
           if (userAvatar) setAvatar(userAvatar)
-
-          // Hastaneleri yükle
           if (profileCity) {
             setLoadingHospitals(true)
             hospitalAPI.search(profileCity, profileDistrict || undefined)
@@ -72,17 +72,38 @@ const DoctorProfileEdit = () => {
               .finally(() => setLoadingHospitals(false))
           }
         }
-      } catch (e) {
-        console.error('Profil yüklenemedi:', e)
-      } finally {
-        setLoading(false)
-      }
+      } catch (e) { console.error(e) }
+      finally { setLoading(false) }
     }
     fetchProfile()
   }, [user])
 
+  // Hata olunca scroll
+  useEffect(() => {
+    if (error && errorRef.current) {
+      errorRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    }
+  }, [error])
+
+  // Alan hataları
+  useEffect(() => {
+    if (Object.keys(fieldErrors).length === 0) return
+    const firstErrorKey = Object.keys(fieldErrors)[0]
+    const refMap: Record<string, React.RefObject<HTMLDivElement | null>> = {
+      specialty: specialtyRef,
+      bio: bioRef,
+      city: cityRef,
+      hospital: hospitalRef,
+    }
+    const ref = refMap[firstErrorKey]
+    if (ref?.current) {
+      ref.current.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    }
+  }, [fieldErrors])
+
   const handleCityChange = (val: string) => {
     setCity(val); setDistrict(''); setHospital(''); setHospitals([])
+    setFieldErrors(prev => ({ ...prev, city: '' }))
     if (!val) return
     setLoadingHospitals(true)
     hospitalAPI.search(val)
@@ -103,6 +124,7 @@ const DoctorProfileEdit = () => {
 
   const handleHospitalChange = (val: string) => {
     setHospital(val)
+    setFieldErrors(prev => ({ ...prev, hospital: '' }))
     const selected = hospitals.find(h => h.name === val)
     if (selected?.address) setAddress(selected.address)
   }
@@ -110,11 +132,7 @@ const DoctorProfileEdit = () => {
   const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
-    // Boyut kontrolü — 5MB
-    if (file.size > 5 * 1024 * 1024) {
-      setError('Fotoğraf 5MB\'dan küçük olmalı')
-      return
-    }
+    if (file.size > 5 * 1024 * 1024) { setError('Fotoğraf 5MB\'dan küçük olmalı'); return }
     setAvatarChanged(true)
     const reader = new FileReader()
     reader.onload = (ev) => setAvatar(ev.target?.result as string)
@@ -127,27 +145,43 @@ const DoctorProfileEdit = () => {
     setWorkingHours(updated)
   }
 
+  const validate = () => {
+    const errors: Record<string, string> = {}
+    if (!specialty) errors.specialty = 'Uzmanlık alanı zorunludur'
+    if (!bio) errors.bio = 'Biyografi zorunludur'
+    if (!city) errors.city = 'Şehir zorunludur'
+    if (!hospitalNotFound && !hospital) errors.hospital = 'Hastane seçiniz veya manuel giriniz'
+    if (hospitalNotFound && !hospitalManual) errors.hospital = 'Hastane adını giriniz'
+    return errors
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    setSaving(true); setError(''); setSuccess(false)
+    setError('')
+    const errors = validate()
+    if (Object.keys(errors).length > 0) {
+      setFieldErrors(errors)
+      return
+    }
+    setFieldErrors({})
+    setSaving(true)
     try {
       const payload: any = {
-        specialty,
-        experience: Number(experience),
-        bio,
+        specialty, experience: Number(experience), bio,
         hospital: hospitalNotFound ? hospitalManual : hospital,
         consultationFee: Number(consultationFee),
         location: { city, district, address, coordinates: { lat: 0, lng: 0 } },
         workingHours,
       }
-      // Sadece değiştiyse fotoğraf gönder
-      if (avatarChanged && avatar) {
-        payload.avatarBase64 = avatar
-      }
+      if (avatarChanged && avatar) payload.avatarBase64 = avatar
+
       await doctorAPI.updateProfile(payload)
-      setSuccess(true)
-      setAvatarChanged(false)
-      setTimeout(() => setSuccess(false), 3000)
+
+      // Avatar güncellendiyse AuthContext'te de güncelle
+      if (avatarChanged && avatar) updateUser({ avatar })
+
+      // Dashboard'a git, bildirim göster
+      navigate('/dashboard', { state: { successMessage: 'Profiliniz başarıyla güncellendi! 🎉' } })
     } catch (err: any) {
       setError(err.response?.data?.message || 'Profil güncellenemedi')
     } finally {
@@ -179,15 +213,11 @@ const DoctorProfileEdit = () => {
           <h1 className="font-headline text-2xl font-bold text-on-surface">Profilimi Düzenle</h1>
         </div>
 
+        {/* Genel hata */}
         {error && (
-          <div className="flex items-center gap-2 bg-error/10 border border-error/20 text-error px-4 py-3 rounded-xl mb-6 text-sm">
-            <span className="material-symbols-outlined text-lg">error</span>{error}
-          </div>
-        )}
-        {success && (
-          <div className="flex items-center gap-2 bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-xl mb-6 text-sm">
-            <span className="material-symbols-outlined text-lg" style={{fontVariationSettings:"'FILL' 1"}}>check_circle</span>
-            Profil başarıyla güncellendi!
+          <div ref={errorRef} className="flex items-center gap-2 bg-error/10 border border-error/20 text-error px-4 py-3 rounded-xl mb-6 text-sm fade-up">
+            <span className="material-symbols-outlined text-lg" style={{fontVariationSettings:"'FILL' 1"}}>error</span>
+            {error}
           </div>
         )}
 
@@ -232,29 +262,35 @@ const DoctorProfileEdit = () => {
               Temel Bilgiler
             </h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-xs font-semibold text-on-surface-variant mb-2 uppercase tracking-wider">Uzmanlık</label>
-                <select value={specialty} onChange={e => setSpecialty(e.target.value)}
-                  className="w-full px-4 py-3 bg-surface-container-low border border-outline-variant rounded-xl text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-primary transition-all">
+
+              <div ref={specialtyRef}>
+                <label className="block text-xs font-semibold text-on-surface-variant mb-2 uppercase tracking-wider">Uzmanlık *</label>
+                <select value={specialty} onChange={e => { setSpecialty(e.target.value); setFieldErrors(p => ({...p, specialty: ''})) }}
+                  className={`w-full px-4 py-3 bg-surface-container-low border rounded-xl text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-primary transition-all ${fieldErrors.specialty ? 'border-error ring-1 ring-error' : 'border-outline-variant'}`}>
                   <option value="">Seçin</option>
                   {SPECIALTIES.map(s => <option key={s} value={s}>{s}</option>)}
                 </select>
+                {fieldErrors.specialty && <p className="text-xs text-error mt-1 fade-up">{fieldErrors.specialty}</p>}
               </div>
+
               <div>
                 <label className="block text-xs font-semibold text-on-surface-variant mb-2 uppercase tracking-wider">Deneyim (Yıl)</label>
                 <input type="number" min="0" value={experience} onChange={e => setExperience(e.target.value)}
                   className="w-full px-4 py-3 bg-surface-container-low border border-outline-variant rounded-xl text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-primary transition-all" />
               </div>
+
               <div>
                 <label className="block text-xs font-semibold text-on-surface-variant mb-2 uppercase tracking-wider">Konsültasyon Ücreti (₺)</label>
                 <input type="number" min="0" value={consultationFee} onChange={e => setConsultationFee(e.target.value)}
                   className="w-full px-4 py-3 bg-surface-container-low border border-outline-variant rounded-xl text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-primary transition-all" />
               </div>
-              <div className="md:col-span-2">
-                <label className="block text-xs font-semibold text-on-surface-variant mb-2 uppercase tracking-wider">Biyografi</label>
-                <textarea value={bio} onChange={e => setBio(e.target.value)} rows={4}
+
+              <div ref={bioRef} className="md:col-span-2">
+                <label className="block text-xs font-semibold text-on-surface-variant mb-2 uppercase tracking-wider">Biyografi *</label>
+                <textarea value={bio} onChange={e => { setBio(e.target.value); setFieldErrors(p => ({...p, bio: ''})) }} rows={4}
                   placeholder="Kendinizi hastalara tanıtın..."
-                  className="w-full px-4 py-3 bg-surface-container-low border border-outline-variant rounded-xl text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-primary transition-all resize-none" />
+                  className={`w-full px-4 py-3 bg-surface-container-low border rounded-xl text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-primary transition-all resize-none ${fieldErrors.bio ? 'border-error ring-1 ring-error' : 'border-outline-variant'}`} />
+                {fieldErrors.bio && <p className="text-xs text-error mt-1 fade-up">{fieldErrors.bio}</p>}
               </div>
             </div>
           </div>
@@ -266,14 +302,17 @@ const DoctorProfileEdit = () => {
               Konum & Hastane
             </h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-xs font-semibold text-on-surface-variant mb-2 uppercase tracking-wider">Şehir</label>
+
+              <div ref={cityRef}>
+                <label className="block text-xs font-semibold text-on-surface-variant mb-2 uppercase tracking-wider">Şehir *</label>
                 <select value={city} onChange={e => handleCityChange(e.target.value)}
-                  className="w-full px-4 py-3 bg-surface-container-low border border-outline-variant rounded-xl text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-primary transition-all">
+                  className={`w-full px-4 py-3 bg-surface-container-low border rounded-xl text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-primary transition-all ${fieldErrors.city ? 'border-error ring-1 ring-error' : 'border-outline-variant'}`}>
                   <option value="">Seçin</option>
                   {cities.map((c: string) => <option key={c} value={c}>{c}</option>)}
                 </select>
+                {fieldErrors.city && <p className="text-xs text-error mt-1 fade-up">{fieldErrors.city}</p>}
               </div>
+
               <div>
                 <label className="block text-xs font-semibold text-on-surface-variant mb-2 uppercase tracking-wider">İlçe</label>
                 <select value={district} onChange={e => handleDistrictChange(e.target.value)}
@@ -283,15 +322,16 @@ const DoctorProfileEdit = () => {
                   {districts.map((d: string) => <option key={d} value={d}>{d}</option>)}
                 </select>
               </div>
-              <div className="md:col-span-2">
+
+              <div ref={hospitalRef} className="md:col-span-2">
                 <label className="block text-xs font-semibold text-on-surface-variant mb-2 uppercase tracking-wider">
-                  Hastane / Klinik
+                  Hastane / Klinik *
                   {loadingHospitals && <span className="ml-2 text-primary normal-case font-normal text-xs">Yükleniyor...</span>}
                 </label>
                 {!hospitalNotFound ? (
                   <select value={hospital} onChange={e => handleHospitalChange(e.target.value)}
                     disabled={!city}
-                    className="w-full px-4 py-3 bg-surface-container-low border border-outline-variant rounded-xl text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-primary transition-all disabled:opacity-50">
+                    className={`w-full px-4 py-3 bg-surface-container-low border rounded-xl text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-primary transition-all disabled:opacity-50 ${fieldErrors.hospital ? 'border-error ring-1 ring-error' : 'border-outline-variant'}`}>
                     <option value="">Seçin</option>
                     {hospitals.map(h => <option key={h.id} value={h.name}>{h.name}</option>)}
                     {hospital && !hospitals.find(h => h.name === hospital) && (
@@ -299,10 +339,11 @@ const DoctorProfileEdit = () => {
                     )}
                   </select>
                 ) : (
-                  <input type="text" value={hospitalManual} onChange={e => setHospitalManual(e.target.value)}
+                  <input type="text" value={hospitalManual} onChange={e => { setHospitalManual(e.target.value); setFieldErrors(p => ({...p, hospital: ''})) }}
                     placeholder="Hastane veya klinik adını yazın..."
-                    className="w-full px-4 py-3 bg-surface-container-low border border-outline-variant rounded-xl text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-primary transition-all" />
+                    className={`w-full px-4 py-3 bg-surface-container-low border rounded-xl text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-primary transition-all ${fieldErrors.hospital ? 'border-error ring-1 ring-error' : 'border-outline-variant'}`} />
                 )}
+                {fieldErrors.hospital && <p className="text-xs text-error mt-1 fade-up">{fieldErrors.hospital}</p>}
                 <label className="flex items-center gap-2 mt-3 cursor-pointer">
                   <input type="checkbox" checked={hospitalNotFound}
                     onChange={e => { setHospitalNotFound(e.target.checked); if (!e.target.checked) setHospitalManual('') }}
@@ -310,6 +351,7 @@ const DoctorProfileEdit = () => {
                   <span className="text-xs text-on-surface-variant">Listede kliniğim veya hastanem yok, manuel gireceğim</span>
                 </label>
               </div>
+
               <div className="md:col-span-2">
                 <label className="block text-xs font-semibold text-on-surface-variant mb-2 uppercase tracking-wider">Açık Adres</label>
                 <textarea value={address} onChange={e => setAddress(e.target.value)}

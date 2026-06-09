@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useLocation } from 'react-router-dom'
 import { appointmentAPI, messageAPI } from '../api'
 import { useAuth } from '../context/AuthContext'
 import Navbar from '../components/Navbar'
@@ -30,10 +30,19 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string }
 
 const DoctorDashboard = () => {
   const { user } = useAuth()
+  const location = useLocation()
   const [appointments, setAppointments] = useState<Appointment[]>([])
   const [conversations, setConversations] = useState<Conversation[]>([])
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState<'pending' | 'all' | 'messages'>('pending')
+  const [successMessage, setSuccessMessage] = useState<string>('')
+
+  useEffect(() => {
+    if ((location.state as any)?.successMessage) {
+      setSuccessMessage((location.state as any).successMessage)
+      setTimeout(() => setSuccessMessage(''), 4000)
+    }
+  }, [])
 
   useEffect(() => {
     const fetchData = async () => {
@@ -75,6 +84,17 @@ const DoctorDashboard = () => {
   return (
     <div className="min-h-screen">
       <Navbar />
+
+      {/* Başarı bildirimi */}
+      {successMessage && (
+        <div className="fixed top-20 left-1/2 -translate-x-1/2 z-50 fade-up">
+          <div className="flex items-center gap-3 bg-green-500 text-white px-6 py-3.5 rounded-full shadow-card text-sm font-semibold">
+            <span className="material-symbols-outlined text-lg" style={{fontVariationSettings:"'FILL' 1"}}>check_circle</span>
+            {successMessage}
+          </div>
+        </div>
+      )}
+
       <main className="pt-24 px-4 md:px-16 max-w-6xl mx-auto pb-12">
 
         {/* Karşılama */}
@@ -88,11 +108,7 @@ const DoctorDashboard = () => {
                 <h1 className="font-headline text-2xl font-bold text-on-surface">
                   Hoş Geldiniz, {user?.name}! 👨‍⚕️
                 </h1>
-                <p className="text-sm text-on-surface-variant">Doktor Paneli</p>
-                <Link to="/doctor-edit" className="flex items-center gap-2 border border-primary text-primary px-5 py-2.5 rounded-full text-sm font-semibold hover:bg-primary/5 transition-colors active:scale-95">
-  <span className="material-symbols-outlined text-lg">edit</span>
-  Profilimi Düzenle
-</Link>
+                <span> </span>
               </div>
             </div>
 

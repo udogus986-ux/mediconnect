@@ -18,6 +18,7 @@ interface AuthContextType {
   register: (name: string, email: string, password: string, role: string) => Promise<void>
   logout: () => void
   loading: boolean
+  updateUser: (data: Partial<User>) => void
 }
 
 const AuthContext = createContext<AuthContextType | null>(null)
@@ -33,7 +34,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       if (savedToken) {
         try {
           const res = await authAPI.getMe()
-          setUser(res.data.user)
+          const u = res.data.user
+          setUser({
+            id: u._id || u.id,
+            name: u.name,
+            email: u.email,
+            role: u.role,
+            avatar: u.avatar,
+            isOnline: u.isOnline,
+          })
         } catch {
           localStorage.removeItem('medi_token')
           setToken(null)
@@ -49,7 +58,21 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     const { token, user } = res.data
     localStorage.setItem('medi_token', token)
     setToken(token)
-    setUser(user)
+    // Login sonrası getMe çağır — avatar dahil tüm bilgileri al
+    try {
+      const meRes = await authAPI.getMe()
+      const u = meRes.data.user
+      setUser({
+        id: u._id || u.id,
+        name: u.name,
+        email: u.email,
+        role: u.role,
+        avatar: u.avatar,
+        isOnline: u.isOnline,
+      })
+    } catch {
+      setUser(user)
+    }
   }
 
   const register = async (name: string, email: string, password: string, role: string) => {
@@ -67,8 +90,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setUser(null)
   }
 
+  // Profil güncellenince user'ı güncelle
+  const updateUser = (data: Partial<User>) => {
+    setUser(prev => prev ? { ...prev, ...data } : null)
+  }
+
   return (
-    <AuthContext.Provider value={{ user, token, login, register, logout, loading }}>
+    <AuthContext.Provider value={{ user, token, login, register, logout, loading, updateUser }}>
       {children}
     </AuthContext.Provider>
   )
